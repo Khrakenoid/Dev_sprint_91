@@ -1,0 +1,43 @@
+sources:
+  nginx_access:
+    type: file
+    include:
+      - /var/log/nginx/access.log
+    read_from: beginning
+
+  nginx_error:
+    type: file
+    include:
+      - /var/log/nginx/error.log
+    read_from: beginning
+
+transforms:
+  add_log_type_access:
+    type: remap
+    inputs:
+      - nginx_access
+    source: |
+      .log_type = "access"
+      parsed, err = parse_regex(.message, r'^(?P<client>\S+)')
+      if err == null {
+          .client = parsed.client
+      }
+
+  add_log_type_error:
+    type: remap
+    inputs:
+      - nginx_error
+    source: |
+      .log_type = "error"
+
+sinks:
+  loki:
+    type: loki
+    inputs:
+      - add_log_type_access
+      - add_log_type_error
+    endpoint: http://127.0.0.1:3100
+    encoding:
+      codec: json
+    labels:
+      job: "vector"
